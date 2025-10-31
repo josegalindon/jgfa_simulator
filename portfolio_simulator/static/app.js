@@ -121,6 +121,14 @@ async function handleRefresh() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({})
         });
+
+        // Check if response is OK
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        // Parse JSON response
         const result = await response.json();
 
         if (!result.success) {
