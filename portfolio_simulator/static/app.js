@@ -164,11 +164,18 @@ function updateSummaryCards(data) {
 
     // Benchmark comparison
     document.getElementById('portfolioReturn').textContent = formatPercent(data.total_return_pct);
-    document.getElementById('benchmarkReturn').textContent = formatPercent(data.benchmark_return);
-    const alpha = (data.total_return_pct || 0) - (data.benchmark_return || 0);
-    const alphaEl = document.getElementById('alpha');
-    alphaEl.textContent = formatPercent(alpha);
-    alphaEl.className = 'stat-value ' + (alpha >= 0 ? 'positive' : 'negative');
+    document.getElementById('sp500Return').textContent = formatPercent(data.sp500_return);
+    document.getElementById('russell3000Return').textContent = formatPercent(data.russell3000_return);
+
+    const alphaSP500 = (data.total_return_pct || 0) - (data.sp500_return || 0);
+    const alphaSP500El = document.getElementById('alphaSP500');
+    alphaSP500El.textContent = formatPercent(alphaSP500);
+    alphaSP500El.className = 'stat-value ' + (alphaSP500 >= 0 ? 'positive' : 'negative');
+
+    const alphaRussell3000 = (data.total_return_pct || 0) - (data.russell3000_return || 0);
+    const alphaRussell3000El = document.getElementById('alphaRussell3000');
+    alphaRussell3000El.textContent = formatPercent(alphaRussell3000);
+    alphaRussell3000El.className = 'stat-value ' + (alphaRussell3000 >= 0 ? 'positive' : 'negative');
 }
 
 // Update best/worst performers
@@ -290,8 +297,9 @@ function createCharts(data) {
         'cumulativeReturnsChart',
         data.dates,
         [
-            { label: 'Portfolio', data: data.portfolio_returns || [], color: 'rgb(37, 99, 235)' },
-            { label: 'S&P 500', data: data.benchmark_returns || [], color: 'rgb(156, 163, 175)' }
+            { label: 'Portfolio', data: data.portfolio_returns || [], color: 'rgb(30, 58, 138)' },
+            { label: 'S&P 500', data: data.sp500_returns || [], color: 'rgb(156, 163, 175)' },
+            { label: 'Russell 3000', data: data.russell3000_returns || [], color: 'rgb(59, 130, 246)' }
         ],
         'Cumulative Return (%)'
     );

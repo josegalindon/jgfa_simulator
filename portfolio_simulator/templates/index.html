@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Long-Short Portfolio Simulator</title>
+    <title>JGFA Portfolio</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
@@ -11,7 +11,7 @@
     <div class="container">
         <!-- Header -->
         <header class="header">
-            <h1>Long-Short Portfolio Simulator</h1>
+            <h1>JGFA Portfolio</h1>
             <p class="subtitle">Equal-Weight Market Neutral Strategy | 100 Long / 100 Short</p>
             <div class="header-actions">
                 <button id="refreshBtn" class="btn btn-primary">
@@ -71,7 +71,7 @@
             <!-- Benchmark Comparison -->
             <section class="benchmark-section">
                 <div class="card">
-                    <h3>vs S&P 500 Benchmark</h3>
+                    <h3>Benchmark Comparison</h3>
                     <div class="benchmark-stats">
                         <div class="stat-item">
                             <span class="stat-label">Portfolio Return:</span>
@@ -79,11 +79,19 @@
                         </div>
                         <div class="stat-item">
                             <span class="stat-label">S&P 500 Return:</span>
-                            <span class="stat-value" id="benchmarkReturn">0.00%</span>
+                            <span class="stat-value" id="sp500Return">0.00%</span>
                         </div>
                         <div class="stat-item">
-                            <span class="stat-label">Alpha:</span>
-                            <span class="stat-value" id="alpha">0.00%</span>
+                            <span class="stat-label">Russell 3000 Return:</span>
+                            <span class="stat-value" id="russell3000Return">0.00%</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Alpha (vs S&P 500):</span>
+                            <span class="stat-value" id="alphaSP500">0.00%</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Alpha (vs Russell 3000):</span>
+                            <span class="stat-value" id="alphaRussell3000">0.00%</span>
                         </div>
                     </div>
                 </div>

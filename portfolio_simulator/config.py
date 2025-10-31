@@ -61,5 +61,7 @@ INITIAL_CAPITAL = 100000  # $100,000 starting capital
 INCEPTION_DATE = '2025-10-28'  # Portfolio inception date (Tuesday, October 28th)
 POSITION_SIZE = 0.01  # 1% per position (1/100)
 
-# Benchmark
-BENCHMARK_TICKER = '^GSPC'  # S&P 500
+# Benchmarks
+SP500_TICKER = '^GSPC'  # S&P 500
+RUSSELL3000_TICKER = '^RUA'  # Russell 3000
+BENCHMARK_TICKER = '^GSPC'  # Default benchmark (for backward compatibility)

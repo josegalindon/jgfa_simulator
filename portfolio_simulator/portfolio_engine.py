@@ -9,7 +9,7 @@ import numpy as np
 import json
 import os
 from datetime import datetime, timedelta
-from config import TOP_100, BOTTOM_100, INITIAL_CAPITAL, INCEPTION_DATE, BENCHMARK_TICKER, POSITION_SIZE
+from config import TOP_100, BOTTOM_100, INITIAL_CAPITAL, INCEPTION_DATE, SP500_TICKER, RUSSELL3000_TICKER, POSITION_SIZE
 
 
 class PortfolioEngine:
@@ -18,7 +18,9 @@ class PortfolioEngine:
         self.cache_file = os.path.join(cache_dir, 'price_cache.json')
         self.long_tickers = TOP_100
         self.short_tickers = BOTTOM_100
-        self.all_tickers = TOP_100 + BOTTOM_100 + [BENCHMARK_TICKER]
+        self.all_tickers = TOP_100 + BOTTOM_100 + [SP500_TICKER, RUSSELL3000_TICKER]
+        self.sp500_ticker = SP500_TICKER
+        self.russell3000_ticker = RUSSELL3000_TICKER
         self.initial_capital = INITIAL_CAPITAL
         self.inception_date = INCEPTION_DATE
         self.position_size = POSITION_SIZE
@@ -225,12 +227,19 @@ class PortfolioEngine:
         df['cumulative_return'] = (1 + df['portfolio_return']).cumprod() - 1
         df['portfolio_value'] = self.initial_capital * (1 + df['cumulative_return'])
 
-        # Add benchmark
-        benchmark_prices = self.get_price_series(BENCHMARK_TICKER)
-        if not benchmark_prices.empty:
-            benchmark_returns = benchmark_prices / benchmark_prices.iloc[0] - 1
-            df = df.join(benchmark_returns.rename('benchmark_return'), how='left')
-            df['benchmark_return'] = df['benchmark_return'].fillna(method='ffill')
+        # Add S&P 500 benchmark
+        sp500_prices = self.get_price_series(self.sp500_ticker)
+        if not sp500_prices.empty:
+            sp500_returns = sp500_prices / sp500_prices.iloc[0] - 1
+            df = df.join(sp500_returns.rename('sp500_return'), how='left')
+            df['sp500_return'] = df['sp500_return'].fillna(method='ffill')
+
+        # Add Russell 3000 benchmark
+        russell3000_prices = self.get_price_series(self.russell3000_ticker)
+        if not russell3000_prices.empty:
+            russell3000_returns = russell3000_prices / russell3000_prices.iloc[0] - 1
+            df = df.join(russell3000_returns.rename('russell3000_return'), how='left')
+            df['russell3000_return'] = df['russell3000_return'].fillna(method='ffill')
 
         return df
 
@@ -273,9 +282,13 @@ class PortfolioEngine:
         worst_positions = sorted_positions[-5:]
 
         # Benchmark comparison
-        benchmark_return = 0
-        if 'benchmark_return' in timeseries.columns:
-            benchmark_return = timeseries['benchmark_return'].iloc[-1] * 100
+        sp500_return = 0
+        if 'sp500_return' in timeseries.columns:
+            sp500_return = timeseries['sp500_return'].iloc[-1] * 100
+
+        russell3000_return = 0
+        if 'russell3000_return' in timeseries.columns:
+            russell3000_return = timeseries['russell3000_return'].iloc[-1] * 100
 
         # Latest date
         latest_date = timeseries.index[-1].strftime('%Y-%m-%d')
@@ -291,7 +304,8 @@ class PortfolioEngine:
             'max_drawdown': round(max_drawdown, 2),
             'best_positions': best_positions,
             'worst_positions': worst_positions,
-            'benchmark_return': round(benchmark_return, 2),
+            'sp500_return': round(sp500_return, 2),
+            'russell3000_return': round(russell3000_return, 2),
             'latest_date': latest_date,
             'days_active': len(timeseries)
         }
@@ -315,10 +329,14 @@ class PortfolioEngine:
         running_max = cumulative.expanding().max()
         drawdown = ((cumulative - running_max) / running_max * 100).tolist()
 
-        # Benchmark
-        benchmark_returns = []
-        if 'benchmark_return' in timeseries.columns:
-            benchmark_returns = (timeseries['benchmark_return'] * 100).tolist()
+        # Benchmarks
+        sp500_returns = []
+        if 'sp500_return' in timeseries.columns:
+            sp500_returns = (timeseries['sp500_return'] * 100).tolist()
+
+        russell3000_returns = []
+        if 'russell3000_return' in timeseries.columns:
+            russell3000_returns = (timeseries['russell3000_return'] * 100).tolist()
 
         return {
             'dates': dates,
@@ -326,5 +344,6 @@ class PortfolioEngine:
             'portfolio_returns': portfolio_returns,
             'daily_returns': daily_returns,
             'drawdown': drawdown,
-            'benchmark_returns': benchmark_returns
+            'sp500_returns': sp500_returns,
+            'russell3000_returns': russell3000_returns
         }
