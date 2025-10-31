@@ -140,4 +140,8 @@ if __name__ == '__main__':
 
     print("\nStarting Flask server...")
     print("Dashboard available at: http://127.0.0.1:5000")
-    app.run(debug=True, host='0.0.0.0', port=5000)
+
+    # Use environment variable for debug mode (default to False for production)
+    debug_mode = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'
+    port = int(os.getenv('PORT', 5000))
+    app.run(debug=debug_mode, host='0.0.0.0', port=port)
