@@ -118,7 +118,8 @@ async function handleRefresh() {
         // Trigger data update on backend
         const response = await fetch('/api/portfolio/update', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({})
         });
         const result = await response.json();
 
