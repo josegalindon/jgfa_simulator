@@ -3,14 +3,18 @@ Portfolio calculation engine for long-short equal-weight strategy
 Handles price data fetching, caching, and performance metrics
 """
 
-import yfinance as yf
+import requests
 import pandas as pd
 import numpy as np
 import json
 import os
 import time
 from datetime import datetime, timedelta
-from config import TOP_100, BOTTOM_100, INITIAL_CAPITAL, INCEPTION_DATE, SP500_TICKER, RUSSELL3000_TICKER, POSITION_SIZE
+from config import (
+    TOP_100, BOTTOM_100, INITIAL_CAPITAL, INCEPTION_DATE,
+    SP500_TICKER, RUSSELL3000_TICKER, POSITION_SIZE,
+    MASSIVE_API_KEY, MASSIVE_BASE_URL, MASSIVE_RATE_LIMIT
+)
 
 
 class PortfolioEngine:
@@ -25,6 +29,18 @@ class PortfolioEngine:
         self.initial_capital = INITIAL_CAPITAL
         self.inception_date = INCEPTION_DATE
         self.position_size = POSITION_SIZE
+        self.api_key = MASSIVE_API_KEY
+        self.base_url = MASSIVE_BASE_URL
+
+        # Rate limiting: 5 calls per minute = 12 seconds between calls
+        self.min_request_interval = 60.0 / MASSIVE_RATE_LIMIT
+        self.last_request_time = 0
+
+        # Ticker mapping for indices (Yahoo format -> Massive format)
+        self.ticker_map = {
+            '^GSPC': 'I:SPX',  # S&P 500
+            '^RUA': 'I:RUA'     # Russell 3000
+        }
 
         # Ensure cache directory exists
         os.makedirs(cache_dir, exist_ok=True)
@@ -47,40 +63,78 @@ class PortfolioEngine:
         with open(self.cache_file, 'w') as f:
             json.dump(self.price_cache, f)
 
+    def _rate_limit(self):
+        """Enforce rate limiting between API calls"""
+        current_time = time.time()
+        time_since_last_request = current_time - self.last_request_time
+
+        if time_since_last_request < self.min_request_interval:
+            sleep_time = self.min_request_interval - time_since_last_request
+            time.sleep(sleep_time)
+
+        self.last_request_time = time.time()
+
+    def _map_ticker(self, ticker):
+        """Map Yahoo Finance tickers to Massive tickers"""
+        return self.ticker_map.get(ticker, ticker)
+
     def _fetch_ticker_data(self, ticker, start_date, end_date, max_retries=3):
-        """Fetch historical price data for a single ticker with retries"""
+        """Fetch historical price data from Massive API"""
+        # Map ticker if needed (for indices)
+        massive_ticker = self._map_ticker(ticker)
+
         for attempt in range(max_retries):
             try:
                 # Add delay before retry attempts
                 if attempt > 0:
-                    wait_time = (attempt + 1) * 2  # 2, 4, 6 seconds
+                    wait_time = (attempt + 1) * 5  # 5, 10, 15 seconds
                     print(f"Retrying {ticker} after {wait_time}s (attempt {attempt + 1}/{max_retries})")
                     time.sleep(wait_time)
 
-                # Download data
-                data = yf.download(
-                    ticker,
-                    start=start_date,
-                    end=end_date,
-                    progress=False
-                )
+                # Enforce rate limiting
+                self._rate_limit()
 
-                if data is None or data.empty:
-                    if attempt == max_retries - 1:
-                        print(f"No data returned for {ticker} after {max_retries} attempts")
+                # Build Massive API URL
+                url = f"{self.base_url}/v2/aggs/ticker/{massive_ticker}/range/1/day/{start_date}/{end_date}"
+                params = {
+                    'adjusted': 'true',
+                    'sort': 'asc',
+                    'apiKey': self.api_key
+                }
+
+                # Make API request
+                response = requests.get(url, params=params, timeout=30)
+
+                if response.status_code == 200:
+                    data = response.json()
+
+                    if data.get('status') != 'OK' or not data.get('results'):
+                        if attempt == max_retries - 1:
+                            print(f"No data for {ticker}: {data.get('status', 'Unknown')}")
+                        continue
+
+                    # Convert Massive format to our format
+                    prices = {}
+                    for bar in data['results']:
+                        # Massive timestamps are in milliseconds
+                        date_str = datetime.fromtimestamp(bar['t'] / 1000).strftime('%Y-%m-%d')
+                        prices[date_str] = float(bar['c'])  # close price
+
+                    return prices
+
+                elif response.status_code == 429:
+                    # Rate limit hit, wait longer
+                    print(f"Rate limit hit for {ticker}, waiting 60s...")
+                    time.sleep(60)
                     continue
-
-                # Convert to dictionary with date strings as keys
-                prices = {}
-                for date, row in data.iterrows():
-                    date_str = date.strftime('%Y-%m-%d')
-                    prices[date_str] = float(row['Adj Close'])
-
-                return prices
+                else:
+                    if attempt == max_retries - 1:
+                        print(f"API error for {ticker}: {response.status_code}")
+                    continue
 
             except Exception as e:
                 if attempt == max_retries - 1:
-                    print(f"Error fetching {ticker} after {max_retries} attempts: {str(e)[:100]}")
+                    print(f"Error fetching {ticker}: {str(e)[:100]}")
                 continue
 
         return None
@@ -107,11 +161,6 @@ class PortfolioEngine:
             if idx % 20 == 0:
                 print(f"Progress: {idx}/{total} tickers processed")
 
-            # Longer break every 50 tickers to avoid sustained rate limiting
-            if idx > 0 and idx % 50 == 0:
-                print(f"Taking 10 second break after {idx} tickers...")
-                time.sleep(10)
-
             # Check if we need to update this ticker
             if ticker in self.price_cache and not force_refresh:
                 last_date = max(self.price_cache[ticker].keys())
@@ -134,10 +183,6 @@ class PortfolioEngine:
                 results['updated'].append(ticker)
             else:
                 results['failed'].append(ticker)
-
-            # Delay to avoid Yahoo Finance rate limiting (0.5 seconds per ticker)
-            # This prevents the "No timezone found" blocking error
-            time.sleep(0.5)
 
         # Save updated cache
         self._save_cache()

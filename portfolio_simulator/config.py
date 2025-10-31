@@ -65,3 +65,8 @@ POSITION_SIZE = 0.01  # 1% per position (1/100)
 SP500_TICKER = '^GSPC'  # S&P 500
 RUSSELL3000_TICKER = '^RUA'  # Russell 3000
 BENCHMARK_TICKER = '^GSPC'  # Default benchmark (for backward compatibility)
+
+# Massive.com API Configuration
+MASSIVE_API_KEY = 'crJgVpcwbSno5BGWLuu3tp24AsYYXeIG'
+MASSIVE_BASE_URL = 'https://api.massive.com'
+MASSIVE_RATE_LIMIT = 5  # calls per minute (Free/Basic plan)
