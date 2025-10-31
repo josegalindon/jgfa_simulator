@@ -133,7 +133,7 @@ async function handleRefresh() {
         }
 
         // Show user feedback
-        showError(`Update started! Fetching ${result.total_tickers} tickers in background...`);
+        showError(`Update started! Fetching 200 tickers in background...`);
 
         // Poll for status
         await pollUpdateStatus();
