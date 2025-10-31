@@ -143,10 +143,9 @@ class PortfolioEngine:
     def update_price_data(self, force_refresh=False):
         """
         Update price data for all tickers
-        Only fetches new data since last update to minimize API calls
+        Only fetches most recent end of day price to minimize API calls
         """
         today = datetime.now().strftime('%Y-%m-%d')
-        start_date = self.inception_date
 
         results = {
             'updated': [],
@@ -162,15 +161,16 @@ class PortfolioEngine:
             if idx % 20 == 0:
                 print(f"Progress: {idx}/{total} tickers processed")
 
-            # Check if we need to update this ticker
+            # Determine what data to fetch
             if ticker in self.price_cache and not force_refresh:
                 last_date = max(self.price_cache[ticker].keys())
                 if last_date >= today:
                     results['skipped'].append(ticker)
                     continue
-                # Only fetch from last cached date
-                start_date = last_date
+                # Only fetch today's price (most recent end of day)
+                start_date = today
             else:
+                # First time - fetch full historical data from inception
                 start_date = self.inception_date
 
             # Fetch data
