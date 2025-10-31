@@ -94,7 +94,11 @@ def update_data():
     Returns: JSON with update results
     """
     try:
-        force_refresh = request.json.get('force_refresh', False) if request.json else False
+        # Handle both JSON and empty body
+        force_refresh = False
+        if request.is_json and request.json:
+            force_refresh = request.json.get('force_refresh', False)
+
         results = portfolio.update_price_data(force_refresh=force_refresh)
 
         return jsonify({
@@ -108,6 +112,7 @@ def update_data():
             }
         })
     except Exception as e:
+        print(f"Error in update_data: {str(e)}")  # Log to console
         return jsonify({
             'success': False,
             'error': str(e)
