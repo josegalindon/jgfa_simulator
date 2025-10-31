@@ -108,7 +108,8 @@ class PortfolioEngine:
                 if response.status_code == 200:
                     data = response.json()
 
-                    if data.get('status') != 'OK' or not data.get('results'):
+                    # Accept both 'OK' and 'DELAYED' status (free tier returns DELAYED)
+                    if data.get('status') not in ['OK', 'DELAYED'] or not data.get('results'):
                         if attempt == max_retries - 1:
                             print(f"No data for {ticker}: {data.get('status', 'Unknown')}")
                         continue
