@@ -114,13 +114,23 @@ async function handleRefresh() {
     refreshBtn.disabled = true;
     refreshIcon.classList.add('rotating');
 
+    // Create abort controller with 5 minute timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minutes
+
     try {
+        // Show user feedback
+        showError('Fetching price data for 201 tickers... This may take 2-3 minutes.');
+
         // Trigger data update on backend
         const response = await fetch('/api/portfolio/update', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({})
+            body: JSON.stringify({}),
+            signal: controller.signal
         });
+
+        clearTimeout(timeoutId);
 
         // Check if response is OK
         if (!response.ok) {
@@ -139,10 +149,16 @@ async function handleRefresh() {
         await initializeDashboard();
 
         // Show success message
+        document.getElementById('errorMessage').style.display = 'none';
         console.log(`Updated ${result.data.updated_count} tickers`);
     } catch (error) {
-        showError('Failed to refresh data: ' + error.message);
+        if (error.name === 'AbortError') {
+            showError('Refresh timed out after 5 minutes. Try again or reload the page.');
+        } else {
+            showError('Failed to refresh data: ' + error.message);
+        }
     } finally {
+        clearTimeout(timeoutId);
         refreshBtn.disabled = false;
         refreshIcon.classList.remove('rotating');
     }
