@@ -8,6 +8,7 @@ import pandas as pd
 import numpy as np
 import json
 import os
+import time
 from datetime import datetime, timedelta
 from config import TOP_100, BOTTOM_100, INITIAL_CAPITAL, INCEPTION_DATE, SP500_TICKER, RUSSELL3000_TICKER, POSITION_SIZE
 
@@ -46,11 +47,20 @@ class PortfolioEngine:
         with open(self.cache_file, 'w') as f:
             json.dump(self.price_cache, f)
 
-    def _fetch_ticker_data(self, ticker, start_date, end_date):
-        """Fetch historical price data for a single ticker"""
+    def _fetch_ticker_data(self, ticker, start_date, end_date, timeout=10):
+        """Fetch historical price data for a single ticker with timeout"""
         try:
-            data = yf.download(ticker, start=start_date, end=end_date, progress=False)
-            if data.empty:
+            # Download with timeout to prevent hanging
+            data = yf.download(
+                ticker,
+                start=start_date,
+                end=end_date,
+                progress=False,
+                timeout=timeout
+            )
+
+            if data is None or data.empty:
+                print(f"No data returned for {ticker}")
                 return None
 
             # Convert to dictionary with date strings as keys
@@ -61,7 +71,7 @@ class PortfolioEngine:
 
             return prices
         except Exception as e:
-            print(f"Error fetching {ticker}: {e}")
+            print(f"Error fetching {ticker}: {str(e)[:100]}")  # Truncate long errors
             return None
 
     def update_price_data(self, force_refresh=False):
@@ -78,7 +88,12 @@ class PortfolioEngine:
             'skipped': []
         }
 
-        for ticker in self.all_tickers:
+        total = len(self.all_tickers)
+        for idx, ticker in enumerate(self.all_tickers, 1):
+            # Log progress every 20 tickers
+            if idx % 20 == 0:
+                print(f"Progress: {idx}/{total} tickers processed")
+
             # Check if we need to update this ticker
             if ticker in self.price_cache and not force_refresh:
                 last_date = max(self.price_cache[ticker].keys())
@@ -101,6 +116,9 @@ class PortfolioEngine:
                 results['updated'].append(ticker)
             else:
                 results['failed'].append(ticker)
+
+            # Small delay to avoid rate limiting (0.1 seconds per ticker)
+            time.sleep(0.1)
 
         # Save updated cache
         self._save_cache()
