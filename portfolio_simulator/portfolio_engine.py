@@ -47,32 +47,43 @@ class PortfolioEngine:
         with open(self.cache_file, 'w') as f:
             json.dump(self.price_cache, f)
 
-    def _fetch_ticker_data(self, ticker, start_date, end_date, timeout=10):
-        """Fetch historical price data for a single ticker with timeout"""
-        try:
-            # Download with timeout to prevent hanging
-            data = yf.download(
-                ticker,
-                start=start_date,
-                end=end_date,
-                progress=False,
-                timeout=timeout
-            )
+    def _fetch_ticker_data(self, ticker, start_date, end_date, max_retries=3):
+        """Fetch historical price data for a single ticker with retries"""
+        for attempt in range(max_retries):
+            try:
+                # Add delay before retry attempts
+                if attempt > 0:
+                    wait_time = (attempt + 1) * 2  # 2, 4, 6 seconds
+                    print(f"Retrying {ticker} after {wait_time}s (attempt {attempt + 1}/{max_retries})")
+                    time.sleep(wait_time)
 
-            if data is None or data.empty:
-                print(f"No data returned for {ticker}")
-                return None
+                # Download data
+                data = yf.download(
+                    ticker,
+                    start=start_date,
+                    end=end_date,
+                    progress=False
+                )
 
-            # Convert to dictionary with date strings as keys
-            prices = {}
-            for date, row in data.iterrows():
-                date_str = date.strftime('%Y-%m-%d')
-                prices[date_str] = float(row['Adj Close'])
+                if data is None or data.empty:
+                    if attempt == max_retries - 1:
+                        print(f"No data returned for {ticker} after {max_retries} attempts")
+                    continue
 
-            return prices
-        except Exception as e:
-            print(f"Error fetching {ticker}: {str(e)[:100]}")  # Truncate long errors
-            return None
+                # Convert to dictionary with date strings as keys
+                prices = {}
+                for date, row in data.iterrows():
+                    date_str = date.strftime('%Y-%m-%d')
+                    prices[date_str] = float(row['Adj Close'])
+
+                return prices
+
+            except Exception as e:
+                if attempt == max_retries - 1:
+                    print(f"Error fetching {ticker} after {max_retries} attempts: {str(e)[:100]}")
+                continue
+
+        return None
 
     def update_price_data(self, force_refresh=False):
         """
@@ -89,10 +100,17 @@ class PortfolioEngine:
         }
 
         total = len(self.all_tickers)
+        print(f"Starting update for {total} tickers...")
+
         for idx, ticker in enumerate(self.all_tickers, 1):
             # Log progress every 20 tickers
             if idx % 20 == 0:
                 print(f"Progress: {idx}/{total} tickers processed")
+
+            # Longer break every 50 tickers to avoid sustained rate limiting
+            if idx > 0 and idx % 50 == 0:
+                print(f"Taking 10 second break after {idx} tickers...")
+                time.sleep(10)
 
             # Check if we need to update this ticker
             if ticker in self.price_cache and not force_refresh:
@@ -117,8 +135,9 @@ class PortfolioEngine:
             else:
                 results['failed'].append(ticker)
 
-            # Small delay to avoid rate limiting (0.1 seconds per ticker)
-            time.sleep(0.1)
+            # Delay to avoid Yahoo Finance rate limiting (0.5 seconds per ticker)
+            # This prevents the "No timezone found" blocking error
+            time.sleep(0.5)
 
         # Save updated cache
         self._save_cache()
