@@ -145,18 +145,18 @@ function updateSummaryCards(data) {
     document.getElementById('portfolioValue').textContent = formatCurrency(data.current_value);
     const changeEl = document.getElementById('portfolioChange');
     changeEl.textContent = formatPercent(data.total_return_pct);
-    changeEl.className = 'metric-change ' + (data.total_return_pct >= 0 ? 'positive' : 'negative');
+    changeEl.className = 'metric-change ' + ((data.total_return_pct || 0) >= 0 ? 'positive' : 'negative');
 
     // Total P&L
     const pnlEl = document.getElementById('totalPnL');
     pnlEl.textContent = formatCurrency(data.total_pnl);
-    pnlEl.className = 'metric-value ' + (data.total_pnl >= 0 ? 'positive' : 'negative');
+    pnlEl.className = 'metric-value ' + ((data.total_pnl || 0) >= 0 ? 'positive' : 'negative');
 
     document.getElementById('longPnL').textContent = formatCurrency(data.long_pnl);
     document.getElementById('shortPnL').textContent = formatCurrency(data.short_pnl);
 
     // Sharpe Ratio
-    document.getElementById('sharpeRatio').textContent = data.sharpe_ratio.toFixed(2);
+    document.getElementById('sharpeRatio').textContent = (data.sharpe_ratio || 0).toFixed(2);
 
     // Max Drawdown
     document.getElementById('maxDrawdown').textContent = formatPercent(data.max_drawdown);
@@ -165,7 +165,7 @@ function updateSummaryCards(data) {
     // Benchmark comparison
     document.getElementById('portfolioReturn').textContent = formatPercent(data.total_return_pct);
     document.getElementById('benchmarkReturn').textContent = formatPercent(data.benchmark_return);
-    const alpha = data.total_return_pct - data.benchmark_return;
+    const alpha = (data.total_return_pct || 0) - (data.benchmark_return || 0);
     const alphaEl = document.getElementById('alpha');
     alphaEl.textContent = formatPercent(alpha);
     alphaEl.className = 'stat-value ' + (alpha >= 0 ? 'positive' : 'negative');
@@ -176,31 +176,42 @@ function updatePerformers(data) {
     const bestContainer = document.getElementById('bestPerformers');
     const worstContainer = document.getElementById('worstPerformers');
 
-    bestContainer.innerHTML = data.best_positions.map(pos => `
-        <div class="performer-item positive">
-            <div>
-                <div class="performer-ticker">${pos.ticker}</div>
-                <div class="performer-return">${formatPercent(pos.total_return_pct)} return</div>
-            </div>
-            <div class="performer-pnl positive">${formatCurrency(pos.pnl)}</div>
-        </div>
-    `).join('');
+    const bestPositions = data.best_positions || [];
+    const worstPositions = data.worst_positions || [];
 
-    worstContainer.innerHTML = data.worst_positions.map(pos => `
-        <div class="performer-item negative">
-            <div>
-                <div class="performer-ticker">${pos.ticker}</div>
-                <div class="performer-return">${formatPercent(pos.total_return_pct)} return</div>
+    if (bestPositions.length === 0) {
+        bestContainer.innerHTML = '<div class="performer-item">No data available yet</div>';
+    } else {
+        bestContainer.innerHTML = bestPositions.map(pos => `
+            <div class="performer-item positive">
+                <div>
+                    <div class="performer-ticker">${pos.ticker}</div>
+                    <div class="performer-return">${formatPercent(pos.total_return_pct)} return</div>
+                </div>
+                <div class="performer-pnl positive">${formatCurrency(pos.pnl)}</div>
             </div>
-            <div class="performer-pnl negative">${formatCurrency(pos.pnl)}</div>
-        </div>
-    `).join('');
+        `).join('');
+    }
+
+    if (worstPositions.length === 0) {
+        worstContainer.innerHTML = '<div class="performer-item">No data available yet</div>';
+    } else {
+        worstContainer.innerHTML = worstPositions.map(pos => `
+            <div class="performer-item negative">
+                <div>
+                    <div class="performer-ticker">${pos.ticker}</div>
+                    <div class="performer-return">${formatPercent(pos.total_return_pct)} return</div>
+                </div>
+                <div class="performer-pnl negative">${formatCurrency(pos.pnl)}</div>
+            </div>
+        `).join('');
+    }
 }
 
 // Update positions tables
 function updatePositionsTables(data) {
-    renderTable('long', data.long);
-    renderTable('short', data.short);
+    renderTable('long', data.long || []);
+    renderTable('short', data.short || []);
 }
 
 // Render position table
@@ -269,8 +280,8 @@ function switchTab(tabName) {
 
 // Create all charts
 function createCharts(data) {
-    if (!data.dates || data.dates.length === 0) {
-        console.error('No chart data available');
+    if (!data || !data.dates || data.dates.length === 0) {
+        console.log('No chart data available yet');
         return;
     }
 
@@ -279,8 +290,8 @@ function createCharts(data) {
         'cumulativeReturnsChart',
         data.dates,
         [
-            { label: 'Portfolio', data: data.portfolio_returns, color: 'rgb(37, 99, 235)' },
-            { label: 'S&P 500', data: data.benchmark_returns, color: 'rgb(156, 163, 175)' }
+            { label: 'Portfolio', data: data.portfolio_returns || [], color: 'rgb(37, 99, 235)' },
+            { label: 'S&P 500', data: data.benchmark_returns || [], color: 'rgb(156, 163, 175)' }
         ],
         'Cumulative Return (%)'
     );
@@ -289,7 +300,7 @@ function createCharts(data) {
     charts.portfolioValue = createLineChart(
         'portfolioValueChart',
         data.dates,
-        [{ label: 'Value', data: data.portfolio_values, color: 'rgb(16, 185, 129)' }],
+        [{ label: 'Value', data: data.portfolio_values || [], color: 'rgb(16, 185, 129)' }],
         'Portfolio Value ($)'
     );
 
@@ -297,7 +308,7 @@ function createCharts(data) {
     charts.dailyReturns = createBarChart(
         'dailyReturnsChart',
         data.dates,
-        data.daily_returns,
+        data.daily_returns || [],
         'Daily Return (%)'
     );
 
@@ -305,7 +316,7 @@ function createCharts(data) {
     charts.drawdown = createLineChart(
         'drawdownChart',
         data.dates,
-        [{ label: 'Drawdown', data: data.drawdown, color: 'rgb(239, 68, 68)' }],
+        [{ label: 'Drawdown', data: data.drawdown || [], color: 'rgb(239, 68, 68)' }],
         'Drawdown (%)',
         true
     );
@@ -398,7 +409,8 @@ function createBarChart(canvasId, labels, data, yLabel) {
                 tooltip: {
                     callbacks: {
                         label: function(context) {
-                            return context.parsed.y.toFixed(2) + '%';
+                            const value = context.parsed.y || 0;
+                            return value.toFixed(2) + '%';
                         }
                     }
                 }
@@ -424,6 +436,7 @@ function createBarChart(canvasId, labels, data, yLabel) {
 
 // Utility Functions
 function formatCurrency(value) {
+    if (value === undefined || value === null) return '$0.00';
     return new Intl.NumberFormat('en-US', {
         style: 'currency',
         currency: 'USD',
@@ -433,6 +446,7 @@ function formatCurrency(value) {
 }
 
 function formatPercent(value) {
+    if (value === undefined || value === null) return '0.00%';
     const sign = value >= 0 ? '+' : '';
     return sign + value.toFixed(2) + '%';
 }
