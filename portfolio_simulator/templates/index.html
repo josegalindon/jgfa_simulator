@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Long-Short Portfolio Simulator</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1>Long-Short Portfolio Simulator</h1>
+            <p class="subtitle">Equal-Weight Market Neutral Strategy | 100 Long / 100 Short</p>
+            <div class="header-actions">
+                <button id="refreshBtn" class="btn btn-primary">
+                    <span id="refreshIcon">🔄</span> Refresh Data
+                </button>
+                <div class="last-update">
+                    Last updated: <span id="lastUpdateTime">Loading...</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Loading Spinner -->
+        <div id="loadingSpinner" class="loading-spinner">
+            <div class="spinner"></div>
+            <p>Loading portfolio data...</p>
+        </div>
+
+        <!-- Error Message -->
+        <div id="errorMessage" class="error-message" style="display: none;">
+            <span class="error-icon">⚠️</span>
+            <span id="errorText"></span>
+        </div>
+
+        <!-- Main Content -->
+        <div id="mainContent" style="display: none;">
+            <!-- Summary Cards -->
+            <section class="summary-section">
+                <div class="card-grid">
+                    <div class="metric-card">
+                        <div class="metric-label">Portfolio Value</div>
+                        <div class="metric-value" id="portfolioValue">$0</div>
+                        <div class="metric-change" id="portfolioChange">+0.00%</div>
+                    </div>
+
+                    <div class="metric-card">
+                        <div class="metric-label">Total P&L</div>
+                        <div class="metric-value" id="totalPnL">$0</div>
+                        <div class="metric-sublabel">
+                            Long: <span id="longPnL">$0</span> | Short: <span id="shortPnL">$0</span>
+                        </div>
+                    </div>
+
+                    <div class="metric-card">
+                        <div class="metric-label">Sharpe Ratio</div>
+                        <div class="metric-value" id="sharpeRatio">0.00</div>
+                        <div class="metric-sublabel">Annualized</div>
+                    </div>
+
+                    <div class="metric-card">
+                        <div class="metric-label">Max Drawdown</div>
+                        <div class="metric-value" id="maxDrawdown">0.00%</div>
+                        <div class="metric-sublabel">Volatility: <span id="volatility">0.00%</span></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Benchmark Comparison -->
+            <section class="benchmark-section">
+                <div class="card">
+                    <h3>vs S&P 500 Benchmark</h3>
+                    <div class="benchmark-stats">
+                        <div class="stat-item">
+                            <span class="stat-label">Portfolio Return:</span>
+                            <span class="stat-value" id="portfolioReturn">0.00%</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">S&P 500 Return:</span>
+                            <span class="stat-value" id="benchmarkReturn">0.00%</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Alpha:</span>
+                            <span class="stat-value" id="alpha">0.00%</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Charts -->
+            <section class="charts-section">
+                <div class="chart-grid">
+                    <div class="card">
+                        <h3>Cumulative Returns</h3>
+                        <canvas id="cumulativeReturnsChart"></canvas>
+                    </div>
+
+                    <div class="card">
+                        <h3>Portfolio Value</h3>
+                        <canvas id="portfolioValueChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="chart-grid">
+                    <div class="card">
+                        <h3>Daily Returns</h3>
+                        <canvas id="dailyReturnsChart"></canvas>
+                    </div>
+
+                    <div class="card">
+                        <h3>Drawdown</h3>
+                        <canvas id="drawdownChart"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Top/Bottom Performers -->
+            <section class="performers-section">
+                <div class="performer-grid">
+                    <div class="card">
+                        <h3>🏆 Best Performers</h3>
+                        <div id="bestPerformers" class="performer-list"></div>
+                    </div>
+
+                    <div class="card">
+                        <h3>📉 Worst Performers</h3>
+                        <div id="worstPerformers" class="performer-list"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Position Tables -->
+            <section class="positions-section">
+                <div class="tabs">
+                    <button class="tab-btn active" data-tab="long">Long Positions (100)</button>
+                    <button class="tab-btn" data-tab="short">Short Positions (100)</button>
+                </div>
+
+                <div class="tab-content active" id="longTab">
+                    <div class="card">
+                        <div class="table-controls">
+                            <input type="text" id="longSearch" class="search-input" placeholder="Search long positions...">
+                            <select id="longSort" class="sort-select">
+                                <option value="pnl">Sort by P&L</option>
+                                <option value="return">Sort by Return %</option>
+                                <option value="ticker">Sort by Ticker</option>
+                            </select>
+                        </div>
+                        <div class="table-wrapper">
+                            <table class="positions-table">
+                                <thead>
+                                    <tr>
+                                        <th>Ticker</th>
+                                        <th>Inception Price</th>
+                                        <th>Current Price</th>
+                                        <th>Return %</th>
+                                        <th>Position Size</th>
+                                        <th>Current Value</th>
+                                        <th>P&L</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="longPositionsTable">
+                                    <tr><td colspan="7">Loading...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tab-content" id="shortTab">
+                    <div class="card">
+                        <div class="table-controls">
+                            <input type="text" id="shortSearch" class="search-input" placeholder="Search short positions...">
+                            <select id="shortSort" class="sort-select">
+                                <option value="pnl">Sort by P&L</option>
+                                <option value="return">Sort by Return %</option>
+                                <option value="ticker">Sort by Ticker</option>
+                            </select>
+                        </div>
+                        <div class="table-wrapper">
+                            <table class="positions-table">
+                                <thead>
+                                    <tr>
+                                        <th>Ticker</th>
+                                        <th>Inception Price</th>
+                                        <th>Current Price</th>
+                                        <th>Return %</th>
+                                        <th>Position Size</th>
+                                        <th>Current Value</th>
+                                        <th>P&L</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="shortPositionsTable">
+                                    <tr><td colspan="7">Loading...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <footer class="footer">
+        <p>Portfolio Inception: 2024-01-02 | Initial Capital: $100,000 | Data Source: Yahoo Finance</p>
+    </footer>
+
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
