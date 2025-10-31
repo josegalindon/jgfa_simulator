@@ -114,54 +114,81 @@ async function handleRefresh() {
     refreshBtn.disabled = true;
     refreshIcon.classList.add('rotating');
 
-    // Create abort controller with 5 minute timeout
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minutes
-
     try {
-        // Show user feedback
-        showError('Fetching price data for 201 tickers... This may take 2-3 minutes.');
-
-        // Trigger data update on backend
+        // Start background update
         const response = await fetch('/api/portfolio/update', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({}),
-            signal: controller.signal
+            body: JSON.stringify({})
         });
 
-        clearTimeout(timeoutId);
-
-        // Check if response is OK
         if (!response.ok) {
-            const errorText = await response.text();
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
 
-        // Parse JSON response
         const result = await response.json();
 
         if (!result.success) {
-            throw new Error(result.error || 'Failed to update data');
+            throw new Error(result.error || 'Failed to start update');
         }
+
+        // Show user feedback
+        showError(`Update started! Fetching ${result.total_tickers} tickers in background...`);
+
+        // Poll for status
+        await pollUpdateStatus();
 
         // Reload dashboard with fresh data
         await initializeDashboard();
 
-        // Show success message
+        // Hide message and show success
         document.getElementById('errorMessage').style.display = 'none';
-        console.log(`Updated ${result.data.updated_count} tickers`);
+        console.log('Update completed successfully');
+
     } catch (error) {
-        if (error.name === 'AbortError') {
-            showError('Refresh timed out after 5 minutes. Try again or reload the page.');
-        } else {
-            showError('Failed to refresh data: ' + error.message);
-        }
+        showError('Failed to refresh data: ' + error.message);
     } finally {
-        clearTimeout(timeoutId);
         refreshBtn.disabled = false;
         refreshIcon.classList.remove('rotating');
     }
+}
+
+// Poll the update status endpoint
+async function pollUpdateStatus() {
+    return new Promise((resolve, reject) => {
+        const pollInterval = setInterval(async () => {
+            try {
+                const response = await fetch('/api/portfolio/update/status');
+                const result = await response.json();
+
+                if (!result.success) {
+                    clearInterval(pollInterval);
+                    reject(new Error('Failed to get update status'));
+                    return;
+                }
+
+                const status = result.status;
+
+                // Update user feedback
+                if (status.message) {
+                    showError(status.message);
+                }
+
+                // Check if complete
+                if (!status.running) {
+                    clearInterval(pollInterval);
+                    if (status.error) {
+                        reject(new Error(status.error));
+                    } else {
+                        resolve();
+                    }
+                }
+            } catch (error) {
+                clearInterval(pollInterval);
+                reject(error);
+            }
+        }, 2000); // Poll every 2 seconds
+    });
 }
 
 // Update summary cards

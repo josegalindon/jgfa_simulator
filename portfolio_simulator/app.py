@@ -6,9 +6,18 @@ Provides API endpoints for the dashboard
 from flask import Flask, render_template, jsonify, request
 from portfolio_engine import PortfolioEngine
 import os
+import threading
 
 app = Flask(__name__)
 portfolio = PortfolioEngine()
+
+# Global state for tracking refresh status
+refresh_status = {
+    'running': False,
+    'progress': 0,
+    'total': 0,
+    'message': ''
+}
 
 
 @app.route('/')
@@ -87,36 +96,79 @@ def get_chart_data():
         }), 500
 
 
+def background_update(force_refresh=False):
+    """Background thread to update price data"""
+    global refresh_status
+    try:
+        refresh_status['running'] = True
+        refresh_status['message'] = 'Starting update...'
+
+        results = portfolio.update_price_data(force_refresh=force_refresh)
+
+        refresh_status['running'] = False
+        refresh_status['message'] = f"Complete! Updated {len(results['updated'])} tickers"
+        refresh_status['results'] = results
+    except Exception as e:
+        refresh_status['running'] = False
+        refresh_status['message'] = f"Error: {str(e)}"
+        refresh_status['error'] = str(e)
+
+
 @app.route('/api/portfolio/update', methods=['POST'])
 def update_data():
     """
-    Fetch latest price data from yfinance
-    Returns: JSON with update results
+    Start background price data update
+    Returns immediately while update runs in background
     """
+    global refresh_status
+
     try:
+        # Check if already running
+        if refresh_status['running']:
+            return jsonify({
+                'success': False,
+                'error': 'Update already in progress'
+            }), 400
+
         # Handle both JSON and empty body
         force_refresh = False
         if request.is_json and request.json:
             force_refresh = request.json.get('force_refresh', False)
 
-        results = portfolio.update_price_data(force_refresh=force_refresh)
+        # Reset status
+        refresh_status = {
+            'running': True,
+            'progress': 0,
+            'total': len(portfolio.all_tickers),
+            'message': 'Starting background update...'
+        }
+
+        # Start background thread
+        thread = threading.Thread(target=background_update, args=(force_refresh,))
+        thread.daemon = True
+        thread.start()
 
         return jsonify({
             'success': True,
-            'data': {
-                'updated_count': len(results['updated']),
-                'failed_count': len(results['failed']),
-                'skipped_count': len(results['skipped']),
-                'updated_tickers': results['updated'],
-                'failed_tickers': results['failed']
-            }
+            'message': 'Update started in background',
+            'total_tickers': len(portfolio.all_tickers)
         })
     except Exception as e:
-        print(f"Error in update_data: {str(e)}")  # Log to console
+        print(f"Error in update_data: {str(e)}")
         return jsonify({
             'success': False,
             'error': str(e)
         }), 500
+
+
+@app.route('/api/portfolio/update/status', methods=['GET'])
+def update_status():
+    """Get the status of the background update"""
+    global refresh_status
+    return jsonify({
+        'success': True,
+        'status': refresh_status
+    })
 
 
 @app.route('/api/health', methods=['GET'])
