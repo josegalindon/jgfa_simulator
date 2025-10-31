@@ -96,6 +96,14 @@ def get_chart_data():
         }), 500
 
 
+def progress_update(current, total, ticker):
+    """Callback function for progress updates"""
+    global refresh_status
+    refresh_status['progress'] = current
+    refresh_status['total'] = total
+    refresh_status['message'] = f"Processing {ticker} ({current}/{total})..."
+
+
 def background_update(force_refresh=False):
     """Background thread to update price data"""
     global refresh_status
@@ -103,15 +111,20 @@ def background_update(force_refresh=False):
         refresh_status['running'] = True
         refresh_status['message'] = 'Starting update...'
 
-        results = portfolio.update_price_data(force_refresh=force_refresh)
+        results = portfolio.update_price_data(
+            force_refresh=force_refresh,
+            progress_callback=progress_update
+        )
 
         refresh_status['running'] = False
-        refresh_status['message'] = f"Complete! Updated {len(results['updated'])} tickers"
+        refresh_status['progress'] = refresh_status['total']
+        refresh_status['message'] = f"Complete! Updated: {len(results['updated'])}, Failed: {len(results['failed'])}, Skipped: {len(results['skipped'])}"
         refresh_status['results'] = results
     except Exception as e:
         refresh_status['running'] = False
         refresh_status['message'] = f"Error: {str(e)}"
         refresh_status['error'] = str(e)
+        print(f"Background update error: {str(e)}")
 
 
 @app.route('/api/portfolio/update', methods=['POST'])

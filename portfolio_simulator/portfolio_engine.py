@@ -140,10 +140,11 @@ class PortfolioEngine:
 
         return None
 
-    def update_price_data(self, force_refresh=False):
+    def update_price_data(self, force_refresh=False, progress_callback=None):
         """
         Update price data for all tickers
         Only fetches most recent end of day price to minimize API calls
+        progress_callback: Optional function to call with (current, total, ticker) for progress updates
         """
         today = datetime.now().strftime('%Y-%m-%d')
 
@@ -157,6 +158,10 @@ class PortfolioEngine:
         print(f"Starting update for {total} tickers...")
 
         for idx, ticker in enumerate(self.all_tickers, 1):
+            # Call progress callback if provided
+            if progress_callback:
+                progress_callback(idx, total, ticker)
+
             # Log progress every 20 tickers
             if idx % 20 == 0:
                 print(f"Progress: {idx}/{total} tickers processed")
