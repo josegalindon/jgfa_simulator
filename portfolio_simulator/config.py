@@ -5,6 +5,10 @@ Generated from final_df.csv based on composite scores
 
 import csv
 import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 def load_tickers_from_csv(csv_path='../final_df.csv'):
     """
@@ -67,7 +71,7 @@ RUSSELL3000_TICKER = '^RUA'  # Russell 3000
 BENCHMARK_TICKER = '^GSPC'  # Default benchmark (for backward compatibility)
 
 # Marketstack API Configuration
-MARKETSTACK_API_KEY = 'YOUR_API_KEY_HERE'  # Replace with your Marketstack API key
+MARKETSTACK_API_KEY = os.getenv('MARKETSTACK_API_KEY', 'YOUR_API_KEY_HERE')
 MARKETSTACK_BASE_URL = 'http://api.marketstack.com/v1'
 MARKETSTACK_MONTHLY_LIMIT = 10000  # Basic plan: 10,000 requests per month
 MARKETSTACK_REQUESTS_PER_SECOND = 1  # Conservative rate limit: 1 request per second
