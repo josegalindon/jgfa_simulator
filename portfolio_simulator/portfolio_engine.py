@@ -221,11 +221,17 @@ class PortfolioEngine:
     def calculate_position_returns(self):
         """Calculate returns for each position (long and short)"""
         position_data = []
+        inception_date = pd.to_datetime(self.inception_date)
 
         # Process long positions
         for ticker in self.long_tickers:
             prices = self.get_price_series(ticker)
             if len(prices) < 2:
+                continue
+
+            # Filter prices to only include data from inception date onwards
+            prices = prices[prices.index >= inception_date]
+            if len(prices) < 1:
                 continue
 
             inception_price = prices.iloc[0]
@@ -249,6 +255,11 @@ class PortfolioEngine:
             if len(prices) < 2:
                 continue
 
+            # Filter prices to only include data from inception date onwards
+            prices = prices[prices.index >= inception_date]
+            if len(prices) < 1:
+                continue
+
             inception_price = prices.iloc[0]
             current_price = prices.iloc[-1]
             total_return = -(current_price / inception_price - 1) * 100  # Short return (inverted)
@@ -268,13 +279,16 @@ class PortfolioEngine:
 
     def calculate_portfolio_timeseries(self):
         """Calculate daily portfolio value and returns"""
-        # Get all unique dates
+        inception_date = pd.to_datetime(self.inception_date)
+
+        # Get all unique dates from inception onwards
         all_dates = set()
         for ticker in self.all_tickers:
             if ticker in self.price_cache:
                 all_dates.update(self.price_cache[ticker].keys())
 
-        all_dates = sorted(list(all_dates))
+        # Filter dates to only include inception date and after
+        all_dates = sorted([d for d in all_dates if pd.to_datetime(d) >= inception_date])
         if not all_dates:
             return pd.DataFrame()
 
@@ -289,20 +303,26 @@ class PortfolioEngine:
             # Calculate long side
             for ticker in self.long_tickers:
                 prices = self.get_price_series(ticker)
+                # Filter to inception date onwards
+                prices = prices[prices.index >= inception_date]
+
                 if date in prices.index.strftime('%Y-%m-%d'):
                     date_idx = prices.index.get_loc(pd.to_datetime(date))
-                    if date_idx > 0:
-                        ret = prices.iloc[date_idx] / prices.iloc[0] - 1
-                        date_long_return.append(ret)
+                    # Calculate return from inception (first price after inception date)
+                    ret = prices.iloc[date_idx] / prices.iloc[0] - 1
+                    date_long_return.append(ret)
 
             # Calculate short side
             for ticker in self.short_tickers:
                 prices = self.get_price_series(ticker)
+                # Filter to inception date onwards
+                prices = prices[prices.index >= inception_date]
+
                 if date in prices.index.strftime('%Y-%m-%d'):
                     date_idx = prices.index.get_loc(pd.to_datetime(date))
-                    if date_idx > 0:
-                        ret = -(prices.iloc[date_idx] / prices.iloc[0] - 1)  # Inverted for short
-                        date_short_return.append(ret)
+                    # Calculate return from inception (inverted for short)
+                    ret = -(prices.iloc[date_idx] / prices.iloc[0] - 1)
+                    date_short_return.append(ret)
 
             if date_long_return or date_short_return:
                 long_avg = np.mean(date_long_return) if date_long_return else 0
@@ -318,7 +338,7 @@ class PortfolioEngine:
 
         df = pd.DataFrame(long_returns)
         if df.empty:
-            return df
+            return pd.DataFrame()
 
         df['date'] = pd.to_datetime(df['date'])
         df = df.set_index('date')
@@ -330,16 +350,22 @@ class PortfolioEngine:
         # Add S&P 500 benchmark
         sp500_prices = self.get_price_series(self.sp500_ticker)
         if not sp500_prices.empty:
-            sp500_returns = sp500_prices / sp500_prices.iloc[0] - 1
-            df = df.join(sp500_returns.rename('sp500_return'), how='left')
-            df['sp500_return'] = df['sp500_return'].fillna(method='ffill')
+            # Filter to inception date onwards
+            sp500_prices = sp500_prices[sp500_prices.index >= inception_date]
+            if not sp500_prices.empty:
+                sp500_returns = sp500_prices / sp500_prices.iloc[0] - 1
+                df = df.join(sp500_returns.rename('sp500_return'), how='left')
+                df['sp500_return'] = df['sp500_return'].fillna(method='ffill')
 
         # Add Russell 3000 benchmark
         russell3000_prices = self.get_price_series(self.russell3000_ticker)
         if not russell3000_prices.empty:
-            russell3000_returns = russell3000_prices / russell3000_prices.iloc[0] - 1
-            df = df.join(russell3000_returns.rename('russell3000_return'), how='left')
-            df['russell3000_return'] = df['russell3000_return'].fillna(method='ffill')
+            # Filter to inception date onwards
+            russell3000_prices = russell3000_prices[russell3000_prices.index >= inception_date]
+            if not russell3000_prices.empty:
+                russell3000_returns = russell3000_prices / russell3000_prices.iloc[0] - 1
+                df = df.join(russell3000_returns.rename('russell3000_return'), how='left')
+                df['russell3000_return'] = df['russell3000_return'].fillna(method='ffill')
 
         return df
 
