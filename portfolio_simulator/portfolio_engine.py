@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 from config import (
     TOP_100, BOTTOM_100, INITIAL_CAPITAL, INCEPTION_DATE,
     SP500_TICKER, RUSSELL3000_TICKER, POSITION_SIZE,
-    MASSIVE_API_KEY, MASSIVE_BASE_URL, MASSIVE_RATE_LIMIT
+    MARKETSTACK_API_KEY, MARKETSTACK_BASE_URL, MARKETSTACK_REQUESTS_PER_SECOND
 )
 
 
@@ -29,17 +29,19 @@ class PortfolioEngine:
         self.initial_capital = INITIAL_CAPITAL
         self.inception_date = INCEPTION_DATE
         self.position_size = POSITION_SIZE
-        self.api_key = MASSIVE_API_KEY
-        self.base_url = MASSIVE_BASE_URL
+        self.api_key = MARKETSTACK_API_KEY
+        self.base_url = MARKETSTACK_BASE_URL
 
-        # Rate limiting: 5 calls per minute = 12 seconds between calls
-        self.min_request_interval = 60.0 / MASSIVE_RATE_LIMIT
+        # Rate limiting: Basic plan has 10,000 requests/month
+        # 1 request per second is safe and won't hit API rate limits
+        self.min_request_interval = 1.0 / MARKETSTACK_REQUESTS_PER_SECOND
         self.last_request_time = 0
 
-        # Ticker mapping for indices (Yahoo format -> Massive format)
+        # Ticker mapping for indices (Yahoo format -> Marketstack format)
+        # Marketstack uses standard ticker symbols (no special prefixes for indices)
         self.ticker_map = {
-            '^GSPC': 'I:SPX',  # S&P 500
-            '^RUA': 'I:RUA'     # Russell 3000
+            '^GSPC': 'SPY',   # S&P 500 ETF as proxy (Marketstack doesn't support ^GSPC directly)
+            '^RUA': 'IWV'     # Russell 3000 ETF as proxy
         }
 
         # Ensure cache directory exists
@@ -75,13 +77,13 @@ class PortfolioEngine:
         self.last_request_time = time.time()
 
     def _map_ticker(self, ticker):
-        """Map Yahoo Finance tickers to Massive tickers"""
+        """Map Yahoo Finance tickers to Marketstack tickers"""
         return self.ticker_map.get(ticker, ticker)
 
     def _fetch_ticker_data(self, ticker, start_date, end_date, max_retries=3):
-        """Fetch historical price data from Massive API"""
+        """Fetch historical price data from Marketstack API"""
         # Map ticker if needed (for indices)
-        massive_ticker = self._map_ticker(ticker)
+        marketstack_ticker = self._map_ticker(ticker)
 
         for attempt in range(max_retries):
             try:
@@ -94,12 +96,15 @@ class PortfolioEngine:
                 # Enforce rate limiting
                 self._rate_limit()
 
-                # Build Massive API URL
-                url = f"{self.base_url}/v2/aggs/ticker/{massive_ticker}/range/1/day/{start_date}/{end_date}"
+                # Build Marketstack API URL
+                url = f"{self.base_url}/eod"
                 params = {
-                    'adjusted': 'true',
-                    'sort': 'asc',
-                    'apiKey': self.api_key
+                    'access_key': self.api_key,
+                    'symbols': marketstack_ticker,
+                    'date_from': start_date,
+                    'date_to': end_date,
+                    'sort': 'ASC',
+                    'limit': 1000  # Maximum results per request
                 }
 
                 # Make API request
@@ -108,18 +113,19 @@ class PortfolioEngine:
                 if response.status_code == 200:
                     data = response.json()
 
-                    # Accept both 'OK' and 'DELAYED' status (free tier returns DELAYED)
-                    if data.get('status') not in ['OK', 'DELAYED'] or not data.get('results'):
+                    # Check if we have data
+                    if not data.get('data'):
                         if attempt == max_retries - 1:
-                            print(f"No data for {ticker}: {data.get('status', 'Unknown')}")
+                            print(f"No data for {ticker}")
                         continue
 
-                    # Convert Massive format to our format
+                    # Convert Marketstack format to our format
                     prices = {}
-                    for bar in data['results']:
-                        # Massive timestamps are in milliseconds
-                        date_str = datetime.fromtimestamp(bar['t'] / 1000).strftime('%Y-%m-%d')
-                        prices[date_str] = float(bar['c'])  # close price
+                    for bar in data['data']:
+                        # Marketstack date format: "2024-01-01T00:00:00+0000"
+                        # Extract just the date part
+                        date_str = bar['date'][:10]  # Get YYYY-MM-DD
+                        prices[date_str] = float(bar['close'])  # close price
 
                     return prices
 
@@ -131,6 +137,12 @@ class PortfolioEngine:
                 else:
                     if attempt == max_retries - 1:
                         print(f"API error for {ticker}: {response.status_code}")
+                        # Try to get error details
+                        try:
+                            error_data = response.json()
+                            print(f"Error details: {error_data}")
+                        except:
+                            pass
                     continue
 
             except Exception as e:

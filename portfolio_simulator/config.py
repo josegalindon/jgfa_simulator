@@ -66,7 +66,13 @@ SP500_TICKER = '^GSPC'  # S&P 500
 RUSSELL3000_TICKER = '^RUA'  # Russell 3000
 BENCHMARK_TICKER = '^GSPC'  # Default benchmark (for backward compatibility)
 
-# Massive.com API Configuration
-MASSIVE_API_KEY = 'crJgVpcwbSno5BGWLuu3tp24AsYYXeIG'
-MASSIVE_BASE_URL = 'https://api.massive.com'
-MASSIVE_RATE_LIMIT = 5  # calls per minute (Free/Basic plan)
+# Marketstack API Configuration
+MARKETSTACK_API_KEY = 'YOUR_API_KEY_HERE'  # Replace with your Marketstack API key
+MARKETSTACK_BASE_URL = 'http://api.marketstack.com/v1'
+MARKETSTACK_MONTHLY_LIMIT = 10000  # Basic plan: 10,000 requests per month
+MARKETSTACK_REQUESTS_PER_SECOND = 1  # Conservative rate limit: 1 request per second
+
+# Scheduled update configuration
+UPDATE_HOUR = 22  # 10 PM
+UPDATE_MINUTE = 0
+UPDATE_TIMEZONE = 'America/New_York'  # EST/EDT

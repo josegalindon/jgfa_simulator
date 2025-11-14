@@ -12,9 +12,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Setup event listeners
 function setupEventListeners() {
-    // Refresh button
-    document.getElementById('refreshBtn').addEventListener('click', handleRefresh);
-
     // Tab switching
     document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.addEventListener('click', function() {
@@ -38,6 +35,10 @@ function setupEventListeners() {
     document.getElementById('shortSort').addEventListener('change', function() {
         sortTable('short', this.value);
     });
+
+    // Start periodic status updates (every 60 seconds)
+    updateStatusDisplay();
+    setInterval(updateStatusDisplay, 60000);
 }
 
 // Initialize dashboard - load all data
@@ -58,8 +59,8 @@ async function initializeDashboard() {
         updatePositionsTables(positionsData);
         createCharts(chartData);
 
-        // Update timestamp
-        document.getElementById('lastUpdateTime').textContent = new Date().toLocaleString();
+        // Update status display (last update time, next scheduled update)
+        updateStatusDisplay();
 
         showLoading(false);
         document.getElementById('mainContent').style.display = 'block';
@@ -106,89 +107,63 @@ async function fetchChartData() {
     return result.data;
 }
 
-// Handle refresh button click
-async function handleRefresh() {
-    const refreshBtn = document.getElementById('refreshBtn');
-    const refreshIcon = document.getElementById('refreshIcon');
-
-    refreshBtn.disabled = true;
-    refreshIcon.classList.add('rotating');
-
+// Update status display (last update time and next scheduled update)
+async function updateStatusDisplay() {
     try {
-        // Start background update
-        const response = await fetch('/api/portfolio/update', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({})
-        });
-
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-
+        const response = await fetch('/api/portfolio/update/status');
         const result = await response.json();
 
         if (!result.success) {
-            throw new Error(result.error || 'Failed to start update');
+            return;
         }
 
-        // Show user feedback
-        showError(`Update started! Fetching 200 tickers in background...`);
+        const status = result.status;
 
-        // Poll for status
-        await pollUpdateStatus();
+        // Update last update time
+        if (status.last_update_time) {
+            const lastUpdate = new Date(status.last_update_time);
+            document.getElementById('lastUpdateTime').textContent = lastUpdate.toLocaleString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true,
+                timeZoneName: 'short'
+            });
+        } else {
+            document.getElementById('lastUpdateTime').textContent = 'Not yet updated';
+        }
 
-        // Reload dashboard with fresh data
-        await initializeDashboard();
+        // Update next scheduled update
+        if (status.next_scheduled_update) {
+            const nextUpdate = new Date(status.next_scheduled_update);
+            const now = new Date();
+            const hoursUntil = Math.floor((nextUpdate - now) / (1000 * 60 * 60));
+            const minutesUntil = Math.floor(((nextUpdate - now) % (1000 * 60 * 60)) / (1000 * 60));
 
-        // Hide message and show success
-        document.getElementById('errorMessage').style.display = 'none';
-        console.log('Update completed successfully');
+            let nextUpdateText;
+            if (hoursUntil < 0) {
+                nextUpdateText = 'Updating soon...';
+            } else if (hoursUntil === 0 && minutesUntil < 60) {
+                nextUpdateText = `In ${minutesUntil} minute${minutesUntil !== 1 ? 's' : ''}`;
+            } else {
+                nextUpdateText = nextUpdate.toLocaleString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    hour12: true,
+                    timeZoneName: 'short'
+                });
+            }
+
+            document.getElementById('nextUpdateTime').textContent = nextUpdateText;
+        }
 
     } catch (error) {
-        showError('Failed to refresh data: ' + error.message);
-    } finally {
-        refreshBtn.disabled = false;
-        refreshIcon.classList.remove('rotating');
+        console.error('Failed to update status display:', error);
     }
-}
-
-// Poll the update status endpoint
-async function pollUpdateStatus() {
-    return new Promise((resolve, reject) => {
-        const pollInterval = setInterval(async () => {
-            try {
-                const response = await fetch('/api/portfolio/update/status');
-                const result = await response.json();
-
-                if (!result.success) {
-                    clearInterval(pollInterval);
-                    reject(new Error('Failed to get update status'));
-                    return;
-                }
-
-                const status = result.status;
-
-                // Update user feedback
-                if (status.message) {
-                    showError(status.message);
-                }
-
-                // Check if complete
-                if (!status.running) {
-                    clearInterval(pollInterval);
-                    if (status.error) {
-                        reject(new Error(status.error));
-                    } else {
-                        resolve();
-                    }
-                }
-            } catch (error) {
-                clearInterval(pollInterval);
-                reject(error);
-            }
-        }, 2000); // Poll every 2 seconds
-    });
 }
 
 // Update summary cards

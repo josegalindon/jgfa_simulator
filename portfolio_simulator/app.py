@@ -1,12 +1,18 @@
 """
 Flask application for portfolio simulator
 Provides API endpoints for the dashboard
+Automatically updates prices daily at 10pm EST
 """
 
 from flask import Flask, render_template, jsonify, request
 from portfolio_engine import PortfolioEngine
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
+from config import UPDATE_HOUR, UPDATE_MINUTE, UPDATE_TIMEZONE
 import os
 import threading
+from datetime import datetime
+import pytz
 
 app = Flask(__name__)
 portfolio = PortfolioEngine()
@@ -16,8 +22,14 @@ refresh_status = {
     'running': False,
     'progress': 0,
     'total': 0,
-    'message': ''
+    'message': '',
+    'last_update_time': None,
+    'next_scheduled_update': None
 }
+
+# Initialize scheduler
+scheduler = BackgroundScheduler(timezone=pytz.timezone(UPDATE_TIMEZONE))
+scheduler_started = False
 
 
 @app.route('/')
@@ -116,10 +128,17 @@ def background_update(force_refresh=False):
             progress_callback=progress_update
         )
 
+        # Update status with completion info
+        est_tz = pytz.timezone(UPDATE_TIMEZONE)
+        current_time = datetime.now(est_tz)
+
         refresh_status['running'] = False
         refresh_status['progress'] = refresh_status['total']
+        refresh_status['last_update_time'] = current_time.isoformat()
         refresh_status['message'] = f"Complete! Updated: {len(results['updated'])}, Failed: {len(results['failed'])}, Skipped: {len(results['skipped'])}"
         refresh_status['results'] = results
+
+        print(f"[{current_time.strftime('%Y-%m-%d %H:%M:%S %Z')}] Price update complete: {len(results['updated'])} updated, {len(results['failed'])} failed")
     except Exception as e:
         refresh_status['running'] = False
         refresh_status['message'] = f"Error: {str(e)}"
@@ -127,51 +146,32 @@ def background_update(force_refresh=False):
         print(f"Background update error: {str(e)}")
 
 
+def scheduled_update():
+    """Scheduled daily update at 10pm EST"""
+    print(f"Starting scheduled price update at {datetime.now(pytz.timezone(UPDATE_TIMEZONE)).strftime('%Y-%m-%d %H:%M:%S %Z')}")
+
+    # Don't start if an update is already running
+    if refresh_status['running']:
+        print("Update already in progress, skipping scheduled update")
+        return
+
+    # Run update in background thread
+    thread = threading.Thread(target=background_update, args=(False,))
+    thread.daemon = True
+    thread.start()
+
+
 @app.route('/api/portfolio/update', methods=['POST'])
 def update_data():
     """
-    Start background price data update
-    Returns immediately while update runs in background
+    Manual price data update endpoint (disabled for production)
+    Updates are now automated daily at 10pm EST
     """
-    global refresh_status
-
-    try:
-        # Check if already running
-        if refresh_status['running']:
-            return jsonify({
-                'success': False,
-                'error': 'Update already in progress'
-            }), 400
-
-        # Handle both JSON and empty body
-        force_refresh = False
-        if request.is_json and request.json:
-            force_refresh = request.json.get('force_refresh', False)
-
-        # Reset status
-        refresh_status = {
-            'running': True,
-            'progress': 0,
-            'total': len(portfolio.all_tickers),
-            'message': 'Starting background update...'
-        }
-
-        # Start background thread
-        thread = threading.Thread(target=background_update, args=(force_refresh,))
-        thread.daemon = True
-        thread.start()
-
-        return jsonify({
-            'success': True,
-            'message': 'Update started in background',
-            'total_tickers': len(portfolio.all_tickers)
-        })
-    except Exception as e:
-        print(f"Error in update_data: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+    return jsonify({
+        'success': False,
+        'error': 'Manual updates are disabled. Prices are automatically updated daily at 10pm EST.',
+        'next_scheduled_update': refresh_status.get('next_scheduled_update')
+    }), 403
 
 
 @app.route('/api/portfolio/update/status', methods=['GET'])
@@ -195,23 +195,72 @@ def health_check():
 
 
 if __name__ == '__main__':
-    # Update data on startup
-    print("Initializing portfolio simulator...")
-    print("Updating price data (this may take a few minutes on first run)...")
+    global scheduler_started
 
+    print("=" * 60)
+    print("Initializing Portfolio Simulator")
+    print("=" * 60)
+
+    # Update data on startup
+    print("\nUpdating price data (this may take a few minutes on first run)...")
     try:
         results = portfolio.update_price_data()
-        print(f"Updated: {len(results['updated'])} tickers")
-        print(f"Failed: {len(results['failed'])} tickers")
-        if results['failed']:
-            print(f"Failed tickers: {results['failed'][:10]}")  # Show first 10
-    except Exception as e:
-        print(f"Warning: Error updating data on startup: {e}")
+        est_tz = pytz.timezone(UPDATE_TIMEZONE)
+        current_time = datetime.now(est_tz)
+        refresh_status['last_update_time'] = current_time.isoformat()
 
-    print("\nStarting Flask server...")
+        print(f"✓ Updated: {len(results['updated'])} tickers")
+        print(f"✗ Failed: {len(results['failed'])} tickers")
+        if results['failed']:
+            print(f"  Failed tickers: {', '.join(results['failed'][:10])}")
+    except Exception as e:
+        print(f"⚠ Warning: Error updating data on startup: {e}")
+
+    # Schedule daily updates at 10pm EST
+    print(f"\n{'=' * 60}")
+    print("Setting up scheduled updates")
+    print(f"{'=' * 60}")
+
+    if not scheduler_started:
+        # Add job to run daily at 10pm EST
+        scheduler.add_job(
+            func=scheduled_update,
+            trigger=CronTrigger(
+                hour=UPDATE_HOUR,
+                minute=UPDATE_MINUTE,
+                timezone=UPDATE_TIMEZONE
+            ),
+            id='daily_price_update',
+            name='Daily price data update',
+            replace_existing=True
+        )
+
+        # Start the scheduler
+        scheduler.start()
+        scheduler_started = True
+
+        # Calculate next run time
+        est_tz = pytz.timezone(UPDATE_TIMEZONE)
+        next_run = scheduler.get_job('daily_price_update').next_run_time
+        refresh_status['next_scheduled_update'] = next_run.isoformat()
+
+        print(f"✓ Scheduled daily updates at {UPDATE_HOUR:02d}:{UPDATE_MINUTE:02d} {UPDATE_TIMEZONE}")
+        print(f"  Next update: {next_run.strftime('%Y-%m-%d %H:%M:%S %Z')}")
+
+    print(f"\n{'=' * 60}")
+    print("Starting Flask Server")
+    print(f"{'=' * 60}")
     print("Dashboard available at: http://127.0.0.1:5000")
+    print(f"{'=' * 60}\n")
 
     # Use environment variable for debug mode (default to False for production)
     debug_mode = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'
     port = int(os.getenv('PORT', 5000))
-    app.run(debug=debug_mode, host='0.0.0.0', port=port)
+
+    try:
+        app.run(debug=debug_mode, host='0.0.0.0', port=port)
+    finally:
+        # Shutdown scheduler on exit
+        if scheduler_started:
+            scheduler.shutdown()
+            print("Scheduler shut down")
