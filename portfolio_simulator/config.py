@@ -62,7 +62,7 @@ BOTTOM_100 = ['TFC', 'CAPR', 'LYFT', 'JPM', 'FNKO', 'DAVE', 'CART', 'HIMS', 'KRU
 
 # Portfolio settings
 INITIAL_CAPITAL = 100000  # $100,000 starting capital
-INCEPTION_DATE = '2025-10-28'  # Portfolio inception date (Tuesday, October 28th)
+INCEPTION_DATE = '2025-10-28'  # Portfolio inception date (Tuesday, October 28th, 2025)
 POSITION_SIZE = 0.01  # 1% per position (1/100)
 
 # Benchmarks
