@@ -40,16 +40,17 @@ def init_scheduler():
         return
 
     try:
-        # Add job to run daily at 10pm EST
+        # Add job to run weekdays (Mon-Fri) at 10pm EST
         scheduler.add_job(
             func=scheduled_update,
             trigger=CronTrigger(
+                day_of_week='mon-fri',
                 hour=UPDATE_HOUR,
                 minute=UPDATE_MINUTE,
                 timezone=UPDATE_TIMEZONE
             ),
-            id='daily_price_update',
-            name='Daily price data update',
+            id='weekday_price_update',
+            name='Weekday price data update',
             replace_existing=True
         )
 
@@ -59,10 +60,10 @@ def init_scheduler():
 
         # Calculate next run time
         est_tz = pytz.timezone(UPDATE_TIMEZONE)
-        next_run = scheduler.get_job('daily_price_update').next_run_time
+        next_run = scheduler.get_job('weekday_price_update').next_run_time
         refresh_status['next_scheduled_update'] = next_run.isoformat()
 
-        print(f"✓ Scheduled daily updates at {UPDATE_HOUR:02d}:{UPDATE_MINUTE:02d} {UPDATE_TIMEZONE}")
+        print(f"✓ Scheduled weekday updates at {UPDATE_HOUR:02d}:{UPDATE_MINUTE:02d} {UPDATE_TIMEZONE} (Mon-Fri)")
         print(f"  Next update: {next_run.strftime('%Y-%m-%d %H:%M:%S %Z')}")
     except Exception as e:
         print(f"Warning: Could not start scheduler: {e}")
