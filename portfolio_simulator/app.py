@@ -70,21 +70,28 @@ def init_scheduler():
 
 def init_data_on_startup():
     """Check if cache is empty and trigger initial data fetch if needed"""
+    print(f"\nChecking data cache...")
+    print(f"  Cache directory: {portfolio.cache_dir}")
+    print(f"  Cache file exists: {os.path.exists(portfolio.cache_file)}")
+    print(f"  Cached tickers: {len(portfolio.price_cache)}")
+
     if not portfolio.price_cache or len(portfolio.price_cache) == 0:
         print("="*60)
         print("FIRST-TIME SETUP: Cache is empty")
         print("Starting initial data fetch in background...")
         print("This will take 3-5 minutes for 202 tickers")
+        print("NOTE: On Render, cache is lost on each deployment")
         print("="*60)
 
         # Start background update
         thread = threading.Thread(target=background_update, args=(False,))
         thread.daemon = True
         thread.start()
+        print("Background fetch thread started")
     else:
-        print(f"Cache loaded: {len(portfolio.price_cache)} tickers found")
+        print(f"✓ Cache loaded: {len(portfolio.price_cache)} tickers found")
         if refresh_status.get('last_update_time'):
-            print(f"Last update: {refresh_status['last_update_time']}")
+            print(f"  Last update: {refresh_status['last_update_time']}")
 
 
 @app.route('/')
@@ -178,6 +185,8 @@ def background_update(force_refresh=False):
         refresh_status['running'] = True
         refresh_status['message'] = 'Starting update...'
 
+        print(f"Background update starting (force_refresh={force_refresh})...")
+
         results = portfolio.update_price_data(
             force_refresh=force_refresh,
             progress_callback=progress_update
@@ -187,7 +196,6 @@ def background_update(force_refresh=False):
         est_tz = pytz.timezone(UPDATE_TIMEZONE)
         current_time = datetime.now(est_tz)
 
-        refresh_status['running'] = False
         refresh_status['progress'] = refresh_status['total']
         refresh_status['last_update_time'] = current_time.isoformat()
         refresh_status['message'] = f"Complete! Updated: {len(results['updated'])}, Failed: {len(results['failed'])}, Skipped: {len(results['skipped'])}"
@@ -195,10 +203,15 @@ def background_update(force_refresh=False):
 
         print(f"[{current_time.strftime('%Y-%m-%d %H:%M:%S %Z')}] Price update complete: {len(results['updated'])} updated, {len(results['failed'])} failed")
     except Exception as e:
-        refresh_status['running'] = False
         refresh_status['message'] = f"Error: {str(e)}"
         refresh_status['error'] = str(e)
-        print(f"Background update error: {str(e)}")
+        print(f"❌ Background update error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+    finally:
+        # Always set running to False, even if there's an exception
+        refresh_status['running'] = False
+        print(f"Background update finished. Running status set to False.")
 
 
 def scheduled_update():
@@ -318,6 +331,29 @@ def debug_cache():
             'success': False,
             'error': str(e)
         }), 500
+
+
+@app.route('/api/debug/reset', methods=['POST'])
+def debug_reset():
+    """Reset stuck update status (emergency use only)"""
+    global refresh_status
+
+    was_stuck = refresh_status.get('running', False)
+
+    refresh_status = {
+        'running': False,
+        'progress': 0,
+        'total': 0,
+        'message': 'Status reset',
+        'last_update_time': refresh_status.get('last_update_time'),
+        'next_scheduled_update': refresh_status.get('next_scheduled_update')
+    }
+
+    return jsonify({
+        'success': True,
+        'message': f"Status reset. Was stuck: {was_stuck}",
+        'new_status': refresh_status
+    })
 
 
 # Check if API key is configured
