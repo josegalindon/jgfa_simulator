@@ -320,7 +320,36 @@ def debug_cache():
         }), 500
 
 
+# Check if API key is configured
+def check_api_key():
+    """Verify API key is set and valid"""
+    api_key = portfolio.api_key
+
+    if not api_key or api_key == 'YOUR_API_KEY_HERE':
+        print("\n" + "="*60)
+        print("❌ ERROR: MARKETSTACK API KEY NOT CONFIGURED!")
+        print("="*60)
+        print("Your Marketstack API key is not set.")
+        print("\nTo fix this on Render:")
+        print("1. Go to: https://dashboard.render.com")
+        print("2. Select your service: jgfa-simulator")
+        print("3. Click 'Environment' in the sidebar")
+        print("4. Add Environment Variable:")
+        print("   Key:   MARKETSTACK_API_KEY")
+        print("   Value: e9744c0d30d269d10d7368fa136d9c5d")
+        print("5. Click 'Save Changes'")
+        print("6. Wait for auto-redeploy (~1 minute)")
+        print("\n" + "="*60)
+        print("⚠️  APP WILL NOT WORK UNTIL API KEY IS SET!")
+        print("="*60 + "\n")
+        return False
+    else:
+        print(f"✓ API key configured: {api_key[:10]}...{api_key[-4:]}")
+        return True
+
+
 # Initialize scheduler and data when module is loaded (works with gunicorn)
+check_api_key()
 init_scheduler()
 init_data_on_startup()
 
