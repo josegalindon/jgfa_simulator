@@ -72,6 +72,29 @@ def init_scheduler():
 init_scheduler()
 
 
+def init_data_on_startup():
+    """Check if cache is empty and trigger initial data fetch if needed"""
+    if not portfolio.price_cache or len(portfolio.price_cache) == 0:
+        print("="*60)
+        print("FIRST-TIME SETUP: Cache is empty")
+        print("Starting initial data fetch in background...")
+        print("This will take 3-5 minutes for 202 tickers")
+        print("="*60)
+
+        # Start background update
+        thread = threading.Thread(target=background_update, args=(False,))
+        thread.daemon = True
+        thread.start()
+    else:
+        print(f"Cache loaded: {len(portfolio.price_cache)} tickers found")
+        if refresh_status.get('last_update_time'):
+            print(f"Last update: {refresh_status['last_update_time']}")
+
+
+# Initialize data on startup (works with gunicorn)
+init_data_on_startup()
+
+
 @app.route('/')
 def index():
     """Serve the main dashboard page"""
@@ -204,14 +227,51 @@ def scheduled_update():
 @app.route('/api/portfolio/update', methods=['POST'])
 def update_data():
     """
-    Manual price data update endpoint (disabled for production)
-    Updates are now automated daily at 10pm EST
+    Manual price data update endpoint
+    Use this for initial setup or force refresh
     """
-    return jsonify({
-        'success': False,
-        'error': 'Manual updates are disabled. Prices are automatically updated daily at 10pm EST.',
-        'next_scheduled_update': refresh_status.get('next_scheduled_update')
-    }), 403
+    global refresh_status
+
+    try:
+        # Check if already running
+        if refresh_status['running']:
+            return jsonify({
+                'success': False,
+                'error': 'Update already in progress',
+                'status': refresh_status
+            }), 400
+
+        # Handle both JSON and empty body
+        force_refresh = False
+        if request.is_json and request.json:
+            force_refresh = request.json.get('force_refresh', False)
+
+        # Reset status
+        refresh_status = {
+            'running': True,
+            'progress': 0,
+            'total': len(portfolio.all_tickers),
+            'message': 'Starting background update...',
+            'last_update_time': refresh_status.get('last_update_time'),
+            'next_scheduled_update': refresh_status.get('next_scheduled_update')
+        }
+
+        # Start background thread
+        thread = threading.Thread(target=background_update, args=(force_refresh,))
+        thread.daemon = True
+        thread.start()
+
+        return jsonify({
+            'success': True,
+            'message': 'Update started in background',
+            'total_tickers': len(portfolio.all_tickers)
+        })
+    except Exception as e:
+        print(f"Error in update_data: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 
 @app.route('/api/portfolio/update/status', methods=['GET'])

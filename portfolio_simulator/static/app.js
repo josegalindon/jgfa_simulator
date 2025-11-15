@@ -12,6 +12,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Setup event listeners
 function setupEventListeners() {
+    // Refresh button
+    document.getElementById('refreshBtn').addEventListener('click', handleRefresh);
+
     // Tab switching
     document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.addEventListener('click', function() {
@@ -105,6 +108,87 @@ async function fetchChartData() {
     }
 
     return result.data;
+}
+
+// Handle refresh button click
+async function handleRefresh() {
+    const refreshBtn = document.getElementById('refreshBtn');
+    const refreshIcon = document.getElementById('refreshIcon');
+
+    refreshBtn.disabled = true;
+    refreshIcon.classList.add('rotating');
+
+    try {
+        // Start background update
+        const response = await fetch('/api/portfolio/update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({})
+        });
+
+        const result = await response.json();
+
+        if (!result.success) {
+            throw new Error(result.error || 'Failed to start update');
+        }
+
+        // Show user feedback
+        showError(`Update started! Fetching ${result.total_tickers} tickers in background...`);
+
+        // Poll for status
+        await pollUpdateStatus();
+
+        // Reload dashboard with fresh data
+        await initializeDashboard();
+
+        // Hide message and show success
+        document.getElementById('errorMessage').style.display = 'none';
+        console.log('Update completed successfully');
+
+    } catch (error) {
+        showError('Failed to refresh data: ' + error.message);
+    } finally {
+        refreshBtn.disabled = false;
+        refreshIcon.classList.remove('rotating');
+    }
+}
+
+// Poll the update status endpoint
+async function pollUpdateStatus() {
+    return new Promise((resolve, reject) => {
+        const pollInterval = setInterval(async () => {
+            try {
+                const response = await fetch('/api/portfolio/update/status');
+                const result = await response.json();
+
+                if (!result.success) {
+                    clearInterval(pollInterval);
+                    reject(new Error('Failed to get update status'));
+                    return;
+                }
+
+                const status = result.status;
+
+                // Update user feedback
+                if (status.message) {
+                    showError(status.message);
+                }
+
+                // Check if complete
+                if (!status.running) {
+                    clearInterval(pollInterval);
+                    if (status.error) {
+                        reject(new Error(status.error));
+                    } else {
+                        resolve();
+                    }
+                }
+            } catch (error) {
+                clearInterval(pollInterval);
+                reject(error);
+            }
+        }, 2000); // Poll every 2 seconds
+    });
 }
 
 // Update status display (last update time and next scheduled update)
