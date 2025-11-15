@@ -68,10 +68,6 @@ def init_scheduler():
         print(f"Warning: Could not start scheduler: {e}")
 
 
-# Start scheduler when module is loaded (works with gunicorn)
-init_scheduler()
-
-
 def init_data_on_startup():
     """Check if cache is empty and trigger initial data fetch if needed"""
     if not portfolio.price_cache or len(portfolio.price_cache) == 0:
@@ -89,10 +85,6 @@ def init_data_on_startup():
         print(f"Cache loaded: {len(portfolio.price_cache)} tickers found")
         if refresh_status.get('last_update_time'):
             print(f"Last update: {refresh_status['last_update_time']}")
-
-
-# Initialize data on startup (works with gunicorn)
-init_data_on_startup()
 
 
 @app.route('/')
@@ -292,6 +284,11 @@ def health_check():
         'status': 'healthy',
         'cache_exists': os.path.exists(portfolio.cache_file)
     })
+
+
+# Initialize scheduler and data when module is loaded (works with gunicorn)
+init_scheduler()
+init_data_on_startup()
 
 
 if __name__ == '__main__':
