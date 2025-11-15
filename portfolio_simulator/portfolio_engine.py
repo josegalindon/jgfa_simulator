@@ -84,13 +84,17 @@ class PortfolioEngine:
         """Fetch historical price data from Marketstack API"""
         # Map ticker if needed (for indices)
         marketstack_ticker = self._map_ticker(ticker)
+        is_benchmark = ticker in [self.sp500_ticker, self.russell3000_ticker]
 
         for attempt in range(max_retries):
             try:
                 # Add delay before retry attempts
                 if attempt > 0:
                     wait_time = (attempt + 1) * 5  # 5, 10, 15 seconds
-                    print(f"Retrying {ticker} after {wait_time}s (attempt {attempt + 1}/{max_retries})")
+                    if is_benchmark:
+                        print(f"Retrying benchmark {ticker} ({marketstack_ticker}) after {wait_time}s (attempt {attempt + 1}/{max_retries})")
+                    else:
+                        print(f"Retrying {ticker} after {wait_time}s (attempt {attempt + 1}/{max_retries})")
                     time.sleep(wait_time)
 
                 # Enforce rate limiting
@@ -116,7 +120,11 @@ class PortfolioEngine:
                     # Check if we have data
                     if not data.get('data'):
                         if attempt == max_retries - 1:
-                            print(f"No data for {ticker}")
+                            if is_benchmark:
+                                print(f"⚠️  No data for benchmark {ticker} ({marketstack_ticker})")
+                                print(f"    This may be due to: ticker not available, plan limitations, or invalid symbol")
+                            else:
+                                print(f"No data for {ticker}")
                         continue
 
                     # Convert Marketstack format to our format
@@ -127,6 +135,9 @@ class PortfolioEngine:
                         date_str = bar['date'][:10]  # Get YYYY-MM-DD
                         prices[date_str] = float(bar['close'])  # close price
 
+                    if is_benchmark and prices:
+                        print(f"✓ Successfully fetched {len(prices)} days of data for {ticker} ({marketstack_ticker})")
+
                     return prices
 
                 elif response.status_code == 429:
@@ -136,18 +147,22 @@ class PortfolioEngine:
                     continue
                 else:
                     if attempt == max_retries - 1:
-                        print(f"API error for {ticker}: {response.status_code}")
+                        print(f"API error for {ticker} ({marketstack_ticker}): HTTP {response.status_code}")
                         # Try to get error details
                         try:
                             error_data = response.json()
                             print(f"Error details: {error_data}")
+                            if is_benchmark:
+                                print(f"⚠️  Benchmark data unavailable - charts will show without benchmark comparison")
                         except:
                             pass
                     continue
 
             except Exception as e:
                 if attempt == max_retries - 1:
-                    print(f"Error fetching {ticker}: {str(e)[:100]}")
+                    print(f"Error fetching {ticker} ({marketstack_ticker}): {str(e)[:100]}")
+                    if is_benchmark:
+                        print(f"⚠️  Benchmark {ticker} will not be available")
                 continue
 
         return None
@@ -191,6 +206,10 @@ class PortfolioEngine:
                 start_date = self.inception_date
 
             # Fetch data
+            mapped_ticker = self._map_ticker(ticker)
+            if ticker != mapped_ticker:
+                print(f"Fetching {ticker} (mapped to {mapped_ticker})...")
+
             prices = self._fetch_ticker_data(ticker, start_date, today)
 
             if prices:
@@ -199,8 +218,15 @@ class PortfolioEngine:
                     self.price_cache[ticker] = {}
                 self.price_cache[ticker].update(prices)
                 results['updated'].append(ticker)
+
+                # Log benchmark updates
+                if ticker in [self.sp500_ticker, self.russell3000_ticker]:
+                    print(f"✓ Benchmark {ticker} ({mapped_ticker}): {len(prices)} data points loaded")
             else:
                 results['failed'].append(ticker)
+                # Log benchmark failures
+                if ticker in [self.sp500_ticker, self.russell3000_ticker]:
+                    print(f"✗ WARNING: Benchmark {ticker} ({mapped_ticker}) failed to load!")
 
         # Save updated cache
         self._save_cache()
