@@ -372,8 +372,10 @@ class PortfolioEngine:
         df['date'] = pd.to_datetime(df['date'])
         df = df.set_index('date')
 
-        # Calculate cumulative returns
-        df['cumulative_return'] = (1 + df['portfolio_return']).cumprod() - 1
+        # portfolio_return already contains cumulative returns from inception
+        # (calculated in line 339: ret = prices.iloc[date_idx] / prices.iloc[0] - 1)
+        # So we use it directly, not compound it again with cumprod()
+        df['cumulative_return'] = df['portfolio_return']
         df['portfolio_value'] = self.initial_capital * (1 + df['cumulative_return'])
 
         # Add S&P 500 benchmark
