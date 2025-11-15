@@ -252,12 +252,12 @@ class PortfolioEngine:
         # Process long positions
         for ticker in self.long_tickers:
             prices = self.get_price_series(ticker)
-            if len(prices) < 2:
+            if len(prices) < 1:
                 continue
 
             # Filter prices to only include data from inception date onwards
             prices = prices[prices.index >= inception_date]
-            if len(prices) < 1:
+            if len(prices) < 2:
                 continue
 
             inception_price = prices.iloc[0]
@@ -278,12 +278,12 @@ class PortfolioEngine:
         # Process short positions
         for ticker in self.short_tickers:
             prices = self.get_price_series(ticker)
-            if len(prices) < 2:
+            if len(prices) < 1:
                 continue
 
             # Filter prices to only include data from inception date onwards
             prices = prices[prices.index >= inception_date]
-            if len(prices) < 1:
+            if len(prices) < 2:
                 continue
 
             inception_price = prices.iloc[0]
@@ -381,7 +381,7 @@ class PortfolioEngine:
             if not sp500_prices.empty:
                 sp500_returns = sp500_prices / sp500_prices.iloc[0] - 1
                 df = df.join(sp500_returns.rename('sp500_return'), how='left')
-                df['sp500_return'] = df['sp500_return'].fillna(method='ffill')
+                df['sp500_return'] = df['sp500_return'].ffill()
 
         # Add Russell 3000 benchmark
         russell3000_prices = self.get_price_series(self.russell3000_ticker)
@@ -391,7 +391,7 @@ class PortfolioEngine:
             if not russell3000_prices.empty:
                 russell3000_returns = russell3000_prices / russell3000_prices.iloc[0] - 1
                 df = df.join(russell3000_returns.rename('russell3000_return'), how='left')
-                df['russell3000_return'] = df['russell3000_return'].fillna(method='ffill')
+                df['russell3000_return'] = df['russell3000_return'].ffill()
 
         return df
 
