@@ -286,6 +286,40 @@ def health_check():
     })
 
 
+@app.route('/api/debug/cache', methods=['GET'])
+def debug_cache():
+    """Debug endpoint to check cache status"""
+    try:
+        cache_data = {
+            'cache_file_exists': os.path.exists(portfolio.cache_file),
+            'cache_size': len(portfolio.price_cache),
+            'tickers_in_cache': list(portfolio.price_cache.keys())[:10],  # First 10
+            'sample_ticker_data': {}
+        }
+
+        # Get sample data for first ticker if available
+        if portfolio.price_cache:
+            first_ticker = list(portfolio.price_cache.keys())[0]
+            ticker_data = portfolio.price_cache[first_ticker]
+            cache_data['sample_ticker'] = first_ticker
+            cache_data['sample_ticker_data'] = {
+                'num_dates': len(ticker_data),
+                'first_date': min(ticker_data.keys()) if ticker_data else None,
+                'last_date': max(ticker_data.keys()) if ticker_data else None,
+                'sample_prices': dict(list(ticker_data.items())[:3])  # First 3 dates
+            }
+
+        return jsonify({
+            'success': True,
+            'data': cache_data
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
 # Initialize scheduler and data when module is loaded (works with gunicorn)
 init_scheduler()
 init_data_on_startup()
