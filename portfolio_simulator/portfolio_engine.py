@@ -354,7 +354,9 @@ class PortfolioEngine:
             if date_long_return or date_short_return:
                 long_avg = np.mean(date_long_return) if date_long_return else 0
                 short_avg = np.mean(date_short_return) if date_short_return else 0
-                portfolio_return = (long_avg + short_avg) / 2  # Equal weight long/short
+                # Portfolio has 100% long + 100% short = 200% gross exposure
+                # Each side contributes its full average return to portfolio
+                portfolio_return = long_avg + short_avg
 
                 long_returns.append({
                     'date': date,
