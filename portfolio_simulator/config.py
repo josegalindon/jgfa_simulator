@@ -3,39 +3,11 @@ Portfolio configuration with ticker arrays
 Generated from final_df.csv based on composite scores
 """
 
-import csv
 import os
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
 load_dotenv()
-
-def load_tickers_from_csv(csv_path='../final_df.csv'):
-    """
-    Load tickers from CSV and create top100 and bottom100 arrays
-    """
-    data = []
-    csv_full_path = os.path.join(os.path.dirname(__file__), csv_path)
-
-    with open(csv_full_path, 'r') as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            data.append({
-                'Ticker': row['Ticker'],
-                'Composite Score': float(row['Composite Score'])
-            })
-
-    # Sort by Composite Score in descending order
-    data_sorted = sorted(data, key=lambda x: x['Composite Score'], reverse=True)
-
-    # Create top100 array (long positions)
-    top100 = [item['Ticker'] for item in data_sorted[:100]]
-
-    # Create bottom100 array (short positions)
-    bottom100 = [item['Ticker'] for item in data_sorted[-100:]]
-
-    return top100, bottom100
-
 
 # Ticker arrays - Top 100 for long positions, Bottom 100 for short positions
 TOP_100 = ['AREN', 'AZO', 'ORLY', 'NXXT', 'EPSN', 'NJR', 'FRPH', 'ASC', 'JOUT', 'LPG',

@@ -58,7 +58,7 @@ def test_ticker(symbol, description):
             try:
                 error_data = response.json()
                 print(f"   Error: {error_data}")
-            except:
+            except Exception:
                 print(f"   Response: {response.text[:200]}")
             return False
 

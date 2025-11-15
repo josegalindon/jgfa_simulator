@@ -56,7 +56,8 @@ class PortfolioEngine:
             try:
                 with open(self.cache_file, 'r') as f:
                     return json.load(f)
-            except:
+            except Exception as e:
+                print(f"Warning: Could not load cache file: {e}")
                 return {}
         return {}
 
@@ -154,7 +155,7 @@ class PortfolioEngine:
                             print(f"Error details: {error_data}")
                             if is_benchmark:
                                 print(f"⚠️  Benchmark data unavailable - charts will show without benchmark comparison")
-                        except:
+                        except Exception:
                             pass
                     continue
 
