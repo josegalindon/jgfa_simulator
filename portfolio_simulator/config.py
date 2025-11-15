@@ -71,7 +71,7 @@ RUSSELL3000_TICKER = '^RUA'  # Russell 3000
 BENCHMARK_TICKER = '^GSPC'  # Default benchmark (for backward compatibility)
 
 # Marketstack API Configuration
-MARKETSTACK_API_KEY = os.getenv('MARKETSTACK_API_KEY', 'YOUR_API_KEY_HERE')
+MARKETSTACK_API_KEY = os.getenv('MARKETSTACK_API_KEY', 'e9744c0d30d269d10d7368fa136d9c5d')
 MARKETSTACK_BASE_URL = 'http://api.marketstack.com/v1'
 MARKETSTACK_MONTHLY_LIMIT = 10000  # Basic plan: 10,000 requests per month
 MARKETSTACK_REQUESTS_PER_SECOND = 1  # Conservative rate limit: 1 request per second
