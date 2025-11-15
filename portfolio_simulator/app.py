@@ -32,6 +32,46 @@ scheduler = BackgroundScheduler(timezone=pytz.timezone(UPDATE_TIMEZONE))
 scheduler_started = False
 
 
+def init_scheduler():
+    """Initialize and start the scheduler for automated updates"""
+    global scheduler_started
+
+    if scheduler_started:
+        return
+
+    try:
+        # Add job to run daily at 10pm EST
+        scheduler.add_job(
+            func=scheduled_update,
+            trigger=CronTrigger(
+                hour=UPDATE_HOUR,
+                minute=UPDATE_MINUTE,
+                timezone=UPDATE_TIMEZONE
+            ),
+            id='daily_price_update',
+            name='Daily price data update',
+            replace_existing=True
+        )
+
+        # Start the scheduler
+        scheduler.start()
+        scheduler_started = True
+
+        # Calculate next run time
+        est_tz = pytz.timezone(UPDATE_TIMEZONE)
+        next_run = scheduler.get_job('daily_price_update').next_run_time
+        refresh_status['next_scheduled_update'] = next_run.isoformat()
+
+        print(f"✓ Scheduled daily updates at {UPDATE_HOUR:02d}:{UPDATE_MINUTE:02d} {UPDATE_TIMEZONE}")
+        print(f"  Next update: {next_run.strftime('%Y-%m-%d %H:%M:%S %Z')}")
+    except Exception as e:
+        print(f"Warning: Could not start scheduler: {e}")
+
+
+# Start scheduler when module is loaded (works with gunicorn)
+init_scheduler()
+
+
 @app.route('/')
 def index():
     """Serve the main dashboard page"""
@@ -195,8 +235,6 @@ def health_check():
 
 
 if __name__ == '__main__':
-    global scheduler_started
-
     print("=" * 60)
     print("Initializing Portfolio Simulator")
     print("=" * 60)
@@ -216,37 +254,7 @@ if __name__ == '__main__':
     except Exception as e:
         print(f"⚠ Warning: Error updating data on startup: {e}")
 
-    # Schedule daily updates at 10pm EST
-    print(f"\n{'=' * 60}")
-    print("Setting up scheduled updates")
-    print(f"{'=' * 60}")
-
-    if not scheduler_started:
-        # Add job to run daily at 10pm EST
-        scheduler.add_job(
-            func=scheduled_update,
-            trigger=CronTrigger(
-                hour=UPDATE_HOUR,
-                minute=UPDATE_MINUTE,
-                timezone=UPDATE_TIMEZONE
-            ),
-            id='daily_price_update',
-            name='Daily price data update',
-            replace_existing=True
-        )
-
-        # Start the scheduler
-        scheduler.start()
-        scheduler_started = True
-
-        # Calculate next run time
-        est_tz = pytz.timezone(UPDATE_TIMEZONE)
-        next_run = scheduler.get_job('daily_price_update').next_run_time
-        refresh_status['next_scheduled_update'] = next_run.isoformat()
-
-        print(f"✓ Scheduled daily updates at {UPDATE_HOUR:02d}:{UPDATE_MINUTE:02d} {UPDATE_TIMEZONE}")
-        print(f"  Next update: {next_run.strftime('%Y-%m-%d %H:%M:%S %Z')}")
-
+    # Scheduler already started at module load
     print(f"\n{'=' * 60}")
     print("Starting Flask Server")
     print(f"{'=' * 60}")
