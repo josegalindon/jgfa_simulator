@@ -46,12 +46,7 @@ BENCHMARK_TICKER = '^GSPC'  # Default benchmark (for backward compatibility)
 
 
 
-MARKETSTACK_API_KEY = os.getenv('MARKETSTACK_API_KEY')
-
-if not MARKETSTACK_API_KEY:
-    raise ValueError("MARKETSTACK_API_KEY not set. Please define it in your environment or GitHub Secrets.")
-
-
+MARKETSTACK_API_KEY = '5dcc5168f431d94202db5808c7091b7a'
 MARKETSTACK_BASE_URL = 'http://api.marketstack.com/v1'
 MARKETSTACK_MONTHLY_LIMIT = 10000  # Basic plan: 10,000 requests per month
 MARKETSTACK_REQUESTS_PER_SECOND = 1  # Conservative rate limit: 1 request per second
