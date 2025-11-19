@@ -43,7 +43,7 @@ RUSSELL3000_TICKER = '^RUA'  # Russell 3000
 BENCHMARK_TICKER = '^GSPC'  # Default benchmark (for backward compatibility)
 
 # Marketstack API Configuration
-MARKETSTACK_API_KEY = '5dcc5168f431d94202db5808c7091b7a'
+MARKETSTACK_API_KEY = ''
 MARKETSTACK_BASE_URL = 'http://api.marketstack.com/v1'
 MARKETSTACK_MONTHLY_LIMIT = 10000  # Basic plan: 10,000 requests per month
 MARKETSTACK_REQUESTS_PER_SECOND = 1  # Conservative rate limit: 1 request per second
